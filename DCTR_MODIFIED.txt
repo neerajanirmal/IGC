@@ -1,0 +1,79 @@
+USE [FACTSERPIGCMIDDLEEAST]
+GO
+/****** Object:  StoredProcedure [dbo].[usp_FQAPI_PWA_DCTR_SAVE]    Script Date: 17-10-2023 12:20:22 PM ******/
+SET ANSI_NULLS ON
+GO
+SET QUOTED_IDENTIFIER ON
+GO
+
+ /* Author : Neeraja Nair         
+ Date      : 16-Oct-2023		
+ Purpose   : DCTR Save */
+
+
+ALTER PROCEDURE [dbo].[usp_FQAPI_PWA_DCTR_SAVE]
+@ClientID    NVARCHAR(20),
+@BodyXML    XML
+AS
+BEGIN
+    SET NOCOUNT ON;
+	--Select @BodyXML
+	----return
+	DECLARE @StrDocno					NVARCHAR(20),
+			@StrDoctype					NVARCHAR(20) ='DOM',
+			@Strfycode                  NVARCHAR(20),
+			@Doc_Date					DATETIME,
+			@Employee_docno				NVARCHAR(20),
+			@strDoctor					NVARCHAR(100),
+			@strMobile1					NVARCHAR(20),
+			@strMobile2					NVARCHAR(20),
+			@strEmailid					NVARCHAR(100),
+			@pagemode                   NVARCHAR(20)
+			
+			SELECT @Strfycode = company_desc
+			FROM COMPANY_PARAMETER
+			WHERE COMPANY_CODE = 'fycode'
+
+			SELECT @StrDoctype			=	xUserInfo.value('(doctype)[1]', 'NVARCHAR(20)')
+			FROM  @BodyXML.nodes('/data/info') as xData(xUserInfo)		
+
+			 SELECT	
+			 @strDoctor		=	xUserInfo.value('(Doctor)[1]','NVARCHAR(100)'),	
+			 @strMobile1	=	xUserInfo.value('(mobile)[1]','NVARCHAR(20)'),
+			 @strMobile2	=	xUserInfo.value('(mobile2)[1]','NVARCHAR(20)'),
+			 @strEmailid	=	xUserInfo.value('(email)[1]','NVARCHAR(100)')
+			FROM  @BodyXML.nodes('/data/info/strXmLHeader') as xData(xUserInfo) 
+
+		
+			SELECT   @Employee_docno  = USER_EMP_DOCNO
+			FROM     USER_MASTER
+			WHERE    USER_LOGINID    = @ClientID
+
+		EXEC dbo.[usp_UpdateLastNoMaster_From_Transaction_Table]  @strDocType,NULL
+	       SELECT @StrDocno   = (SELECT [dbo].fn_GetNewDocNo(@StrDoctype,''))
+			--SELECT @StrDocno= isnull(max(PARTYMST_DOCNO),1000)+1 FROM PARTY_MASTER    -----JUST UNTIL WE GET THE DOCTYPE
+
+				 INSERT INTO PARTY_MASTER
+				 (
+					PARTYMST_DOCNO,
+					PARTYMST_DOCTYPE,
+					PARTYMST_DESC,
+					PARTYMST_TEL1,
+					PARTYMST_TEL2,
+					PARTYMST_EMAIL_ID1,
+					PARTYMST_CREATED_BY,
+					PARTYMST_CREATED_TS
+				)
+
+				SELECT 
+				@StrDocno						PARTYMST_DOCNO,
+				@StrDoctype				    	'DOM',
+				@strDoctor						PARTYMST_DESC,
+				@strMobile1						PARTYMST_TEL1,
+				@strMobile2						PARTYMST_TEL2,
+				@strEmailid						PARTYMST_EMAIL_ID1,
+				@ClientID						PARTYMST_CREATED_BY,
+				GETDATE()						PARTYMST_CREATED_TS
+
+		
+END
